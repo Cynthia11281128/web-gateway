@@ -4,6 +4,8 @@
 
 执行前从用户提供的本机环境确认 `WORKSPACE_ROOT`（工作区绝对路径）和 `GATEWAY_ROOT`（网关仓库绝对路径）。实际地址和目录从本机配置读取，不写回公开文档。以下命令使用这两个变量；常见布局为 `$WORKSPACE_ROOT/infra/web-gateway`，也可以使用其他仓库位置。
 
+本工作区的网页项目统一放在 `$WORKSPACE_ROOT/webgateway_projects/<project-name>/`，项目代码、环境、构建产物和运行日志均保存在对应项目目录内。
+
 ## 红线
 
 - 不手改网关代码、`runtime.json`、`sites.json`、`Caddyfile`、凭据、防火墙；发布/下线只走 CLI。
@@ -21,7 +23,7 @@
    静态站（`public/` 或 `dist/`，含 `index.html`，无 symlink/隐藏文件/密钥）：
    ```bash
    bash "$GATEWAY_ROOT/scripts/web.sh" publish-static my-page \
-     --title "My Page" --dir "$WORKSPACE_ROOT/projects/my-page/dist"
+     --title "My Page" --dir "$WORKSPACE_ROOT/webgateway_projects/my-page/dist"
    ```
    SPA 在命令末尾加 `--spa`，且构建 base 要对，并测深层路径刷新。静态文件直接读目录，同路径重新构建无需重新发布。
 
@@ -38,6 +40,12 @@
 4. **更新**：同名更新加 `--replace`，它整条替换，需重新传 `--title`、`--spa`、`--prefix-mode` 等。在线发布热更新，无需重启网关。
 5. **网关未运行**：不擅自重启/重装；用户明确要求离线准备才加 `--offline`（网关运行中禁用），并说明未上线。
 6. **下线**：仅在用户要求或清理自己的临时站点时，运行 `bash "$GATEWAY_ROOT/scripts/web.sh" unpublish <id>`（不删文件、不停后端）。
+7. **同步网站列表**：每次新增或更新网站，都必须同步更新 `$WORKSPACE_ROOT/webgateway_projects/weblist.md`，包括无需重新登记的原目录重新构建、后端代码更新及重启。同一网站更新原有条目，不重复添加；下线时同步移除访问链接或标明已下线。交付前核对列表与实际网关登记一致。
+
+## 网站列表
+
+- `weblist.md` 使用 Markdown 列表，条目格式为 `[网站名称](完整网关 URL)`，点击名称即可进入完整网站。
+- 名称使用网关登记的 `title`；完整 URL 必须通过 `bash "$GATEWAY_ROOT/scripts/web.sh" url <id>` 获取，保留 `/apps/<site-id>/` 和结尾 `/`，不猜测访问地址。
 
 ## 验收
 
