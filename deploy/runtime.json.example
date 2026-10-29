@@ -1,0 +1,10 @@
+{
+  "public_origin": "http://127.0.0.1:8080",
+  "listen_host": "127.0.0.1",
+  "port": 8080,
+  "control_port": 8100,
+  "workspace_root": "/absolute/path/to/workspace",
+  "state_root": "/absolute/path/to/workspace/infra/web-gateway/var",
+  "auth_file": "/absolute/path/to/workspace/infra/web-gateway/secrets/login.json",
+  "allow_insecure_http": true
+}

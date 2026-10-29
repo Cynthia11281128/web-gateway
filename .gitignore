@@ -1,0 +1,28 @@
+.venv/
+.bin/
+.downloads/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+var/
+secrets/
+
+# Local configuration, credentials and logs.
+.env
+.env.*
+!.env.example
+*.local.json
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor and operating system state.
+.DS_Store
+.vscode/
+.idea/
+
+# Local dataset-derived report; not cleared for public redistribution.
+/examples/model-report/

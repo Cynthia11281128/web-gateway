@@ -1,0 +1,5 @@
+{
+  "version": "2.11.7",
+  "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
+  "checksums_url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_checksums.txt"
+}
