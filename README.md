@@ -90,10 +90,28 @@ setsid --fork bash "$GATEWAY_ROOT/scripts/start.sh" \
 
 本地 supervisor 只管理 Caddy 和登录控制服务，子进程故障有有限重试。所有应用后端由各自项目管理，不按站点 ID 自动启动。整机/任务重启恢复、supervisor 自身故障恢复未配置；`status` 检查进程存活，不等于网页健康。
 
-逐站停启工具由网站仓库管理，参见
-[`webgateway_projects/README.md`](../../webgateway_projects/README.md#website-lifecycle)。
-它读取该仓库的 `website-states.toml`，通过该仓库的 `scripts/apply.sh` 按清单执行；
-仅复用网关的 Python 环境并读取站点登记，不改变登录、路由或 supervisor。
+### 网站停启清单
+
+通用模板位于 [deploy/website-states.toml.example](deploy/website-states.toml.example)。
+实际清单保存在 `$WORKSPACE_ROOT/webgateway_projects/website-states.toml`，属于本机配置，
+不提交 Git。首次准备时使用模板，不覆盖已有清单。
+
+按已登记的站点 ID 填写 `"start"` 或 `"stop"`；静态网站没有独立后端，不能加入清单。
+已达到目标状态的后端保持不变，未列出的站点不操作，删除一行也不代表停止。
+
+停启实现由网站仓库的 `scripts/apply.sh`、`scripts/apply.py` 管理，
+仅克隆网关仓库不会获得这些工具。使用前须准备对应网站代码、依赖及经过核对的
+项目启动映射；模板本身不会自动发现项目或启动后端。
+
+在配套的网站仓库中执行：
+
+```bash
+bash "$WORKSPACE_ROOT/webgateway_projects/scripts/apply.sh" --dry-run
+bash "$WORKSPACE_ROOT/webgateway_projects/scripts/apply.sh"
+```
+
+工具复用网关 Python 环境并读取站点登记，不改变登录、路由或 supervisor。
+停止后原链接通常返回 502；成功启动后使用原链接。缺少数据或依赖可能导致启动失败。
 
 配置和运行文件在 `var/`，凭据在 `secrets/`；这两个目录不提交 Git。密码通过交互命令创建哈希，程序不自动保存明文密码。登录控制服务重启后需要重新登录。
 

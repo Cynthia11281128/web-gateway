@@ -1,0 +1,10 @@
+# Explicit process targets; unlisted websites are untouched.
+# Local checklist: WORKSPACE_ROOT/webgateway_projects/website-states.toml.
+# The local checklist is machine-specific and must not be committed.
+# Requires the website repository's scripts/apply.sh and audited backend mappings;
+# the gateway repository provides this template, not the apply implementation.
+# From webgateway_projects: bash scripts/apply.sh --dry-run, then bash scripts/apply.sh.
+# Static websites have no independent backend and must not appear here.
+[websites]
+# my-service = "start"
+# another-service = "stop"
