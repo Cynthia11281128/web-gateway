@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .access import password_required
+
 
 PROJECT = Path(__file__).resolve().parents[3]
 
@@ -47,7 +49,8 @@ class Settings:
             raise ValueError("State must stay inside the workspace")
         state.mkdir(parents=True, mode=0o700, exist_ok=True)
         return cls(origin, str(host), port, control, state,
-                   Path(values["auth_file"]).resolve(strict=True), workspace, path)
+                   Path(values["auth_file"]).resolve(strict=password_required(state)),
+                   workspace, path)
 
     @property
     def admin_socket(self):

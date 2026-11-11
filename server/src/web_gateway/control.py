@@ -8,6 +8,7 @@ from urllib.parse import urlencode, urlsplit
 
 from aiohttp import web
 
+from .access import password_required
 from .auth import Login, safe_next, upstream_cookie
 from .config import Settings
 from .publishing import Sites
@@ -30,12 +31,13 @@ a{color:#17664b;text-decoration:none}a:hover{text-decoration:underline}
 class Control:
     def __init__(self, settings):
         self.settings = settings
-        self.login = Login(settings.auth_file, secure=False)
+        self.login = (Login(settings.auth_file, secure=False)
+                      if password_required(settings.state_root) else None)
         self.sites = Sites(settings)
         self.token = (settings.state_root / "internal-token").read_text().strip()
         self.app = web.Application(client_max_size=4096, middlewares=[self.internal])
         self.app.add_routes([
-            web.get("/login", self.login.form), web.post("/login", self.sign_in),
+            web.get("/login", self.login_form), web.post("/login", self.sign_in),
             web.get("/auth/check", self.check),
             web.get("/", self.index), web.get("/api/sites", self.list_sites),
             web.post("/logout", self.logout), web.get("/healthz", self.health),
@@ -54,8 +56,23 @@ class Control:
         if (required and not origin) or (origin and origin != self.settings.public_origin):
             raise web.HTTPForbidden(text="Origin not allowed")
 
+    def requires_password(self):
+        required = password_required(self.settings.state_root)
+        if not required:
+            self.login = None
+        elif self.login is None:
+            self.login = Login(self.settings.auth_file, secure=False)
+        return required
+
+    async def login_form(self, request):
+        if not self.requires_password():
+            raise web.HTTPFound(safe_next(request.query.get("next", "/")))
+        return await self.login.form(request)
+
     async def sign_in(self, request):
         self.origin(request, required=True)
+        if not self.requires_password():
+            raise web.HTTPSeeOther("/")
         return await self.login.submit(request)
 
     async def check(self, request):
@@ -63,7 +80,7 @@ class Control:
         method = request.headers.get("X-Forwarded-Method", "GET")
         if method not in {"GET", "HEAD", "OPTIONS"}:
             self.origin(request, required=True)
-        if self.login.authenticated(request):
+        if not self.requires_password() or self.login.authenticated(request):
             return web.Response(status=204, headers={"X-Gateway-Cookie": upstream_cookie(request)})
         uri = request.headers.get("X-Forwarded-Uri", "/")
         path = urlsplit(uri).path
@@ -76,7 +93,7 @@ class Control:
         raise web.HTTPUnauthorized(text="Sign in required")
 
     def require_login(self, request):
-        if not self.login.authenticated(request):
+        if self.requires_password() and not self.login.authenticated(request):
             raise web.HTTPUnauthorized()
 
     async def index(self, request):
@@ -91,8 +108,10 @@ class Control:
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             '<title>Web Apps</title><style>' + CSS + '</style></head><body>'
-            '<header><div><h1>Web Apps</h1><form method="post" action="/logout">'
-            '<button type="submit">Sign Out</button></form></div></header><main>'
+            '<header><div><h1>Web Apps</h1>'
+            + ('<form method="post" action="/logout">'
+               '<button type="submit">Sign Out</button></form>' if self.login else '')
+            + '</div></header><main>'
             + ('<table><thead><tr><th>Website</th><th>Type</th><th class="path">Path</th>'
                '</tr></thead><tbody>' + rows + '</tbody></table>' if rows
                else '<div class="empty">No websites</div>')
@@ -113,6 +132,8 @@ class Control:
     async def logout(self, request):
         self.origin(request, required=True)
         self.require_login(request)
+        if self.login is None:
+            raise web.HTTPSeeOther("/")
         return await self.login.logout(request)
 
     async def health(self, request):

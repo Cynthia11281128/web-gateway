@@ -3,6 +3,7 @@ import asyncio
 from aiohttp.test_utils import TestClient, TestServer
 
 from web_gateway.auth import COOKIE, safe_next, write_credentials
+from web_gateway.cli import disable_login
 from web_gateway.control import Control
 from test_publishing import settings
 
@@ -45,3 +46,45 @@ def test_control_and_cookie_filter(settings):
                 "Origin": "http://unapproved.test"})
             assert response.status == 403
     asyncio.run(check())
+
+
+def test_disable_login_takes_effect_without_restart(settings):
+    settings.auth_file.unlink()
+    write_credentials(settings.auth_file, "unique-test-password")
+    (settings.state_root / "sites.json").write_text("[]")
+    control = Control(settings)
+
+    async def check():
+        async with TestClient(TestServer(control.app)) as client:
+            internal = {"X-Gateway-Internal": "test-only-internal-token"}
+            response = await client.get("/auth/check", headers=internal)
+            assert response.status == 401
+            disable_login(settings)
+            response = await client.get("/auth/check", headers={**internal,
+                "Cookie": f"{COOKIE}=old; app_cookie=value; web3d_session=old"})
+            assert response.status == 204
+            assert response.headers["X-Gateway-Cookie"] == "app_cookie=value"
+            assert control.login is None
+            response = await client.get("/", headers=internal)
+            assert response.status == 200
+            assert "Sign Out" not in await response.text()
+            response = await client.get("/api/sites", headers=internal)
+            assert response.status == 200
+            response = await client.get("/login", headers={**internal},
+                                        allow_redirects=False)
+            assert response.status == 302
+            assert response.headers["Location"] == "/"
+            response = await client.get("/auth/check")
+            assert response.status == 403
+            for origin in (None, "http://unapproved.test", settings.public_origin):
+                headers = {**internal, "X-Forwarded-Method": "POST"}
+                if origin is not None:
+                    headers["Origin"] = origin
+                response = await client.get("/auth/check", headers=headers)
+                assert response.status == (204 if origin == settings.public_origin else 403)
+            response = await client.get("/auth/check", headers={**internal,
+                "Origin": "http://unapproved.test"})
+            assert response.status == 403
+
+    asyncio.run(check())
+    assert Control(settings).login is None

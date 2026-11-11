@@ -1,6 +1,6 @@
 # Web Gateway
 
-带统一登录的多网站发布入口。将工作区内的静态目录或已经运行的回环 HTTP 服务登记到 `/apps/<id>/`，客户端通过浏览器访问，无需安装客户端程序或为每个站点配置 SSH 转发。
+默认带统一登录的多网站发布入口，也支持管理员明确启用免登录访问。将工作区内的静态目录或已经运行的回环 HTTP 服务登记到 `/apps/<id>/`，客户端通过浏览器访问，无需安装客户端程序或为每个站点配置 SSH 转发。
 
 实现位于 `server/src/web_gateway/`，运行与发布脚本位于 `scripts/`，非秘密配置模板位于 `deploy/`。
 
@@ -72,6 +72,14 @@ bash "$GATEWAY_ROOT/scripts/web.sh" unpublish my-app
 
 ## 管理
 
+用户明确要求取消密码时，使用管理命令，不要直接删除凭据或改写运行配置：
+
+```bash
+bash "$GATEWAY_ROOT/scripts/web.sh" disable-login --confirm-public
+```
+
+该命令立即允许匿名访问所有已登记网站，保留 Origin 检查、内部控制认证和后端 cookie 过滤，不改变网络监听、站点登记或应用自身权限。它将设置写入私有 `var/access.json`，并删除配置指定的密码哈希及其同目录的旧 `password.txt`；不输出或读取明文密码。设置在网关重启后继续生效，免登录时不要求密码文件存在。任何能连通网关的人均可访问；默认没有此设置时仍要求登录。
+
 ```bash
 bash "$GATEWAY_ROOT/scripts/status.sh"
 bash "$GATEWAY_ROOT/scripts/stop.sh"
@@ -82,9 +90,14 @@ setsid --fork bash "$GATEWAY_ROOT/scripts/start.sh" \
 
 本地 supervisor 只管理 Caddy 和登录控制服务，子进程故障有有限重试。所有应用后端由各自项目管理，不按站点 ID 自动启动。整机/任务重启恢复、supervisor 自身故障恢复未配置；`status` 检查进程存活，不等于网页健康。
 
+逐站停启工具由网站仓库管理，参见
+[`webgateway_projects/README.md`](../../webgateway_projects/README.md#website-lifecycle)。
+它读取该仓库的 `website-states.toml`，通过该仓库的 `scripts/apply.sh` 按清单执行；
+仅复用网关的 Python 环境并读取站点登记，不改变登录、路由或 supervisor。
+
 配置和运行文件在 `var/`，凭据在 `secrets/`；这两个目录不提交 Git。密码通过交互命令创建哈希，程序不自动保存明文密码。登录控制服务重启后需要重新登录。
 
-所有网站共用一个 origin 和登录，仅用于自己信任的代码，不提供站点安全隔离。静态目录注册时拒绝隐藏文件和 symlink，运行时必须保持可信，不能后来加入 symlink 或秘密文件。
+所有网站共用一个 origin 和访问策略，仅用于自己信任的代码，不提供站点安全隔离。静态目录注册时拒绝隐藏文件和 symlink，运行时必须保持可信，不能后来加入 symlink 或秘密文件。
 
 ## 发布源码
 

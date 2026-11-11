@@ -5,7 +5,16 @@ import subprocess
 import sys
 
 from .config import Settings
-from .publishing import Sites
+from .publishing import Sites, private_write
+
+
+def disable_login(settings):
+    sites = Sites(settings)
+    with sites.lock():
+        private_write(settings.state_root / "access.json",
+                      json.dumps({"require_password": False}, indent=2) + "\n")
+        settings.auth_file.unlink(missing_ok=True)
+        settings.auth_file.with_name("password.txt").unlink(missing_ok=True)
 
 
 def main():
@@ -25,6 +34,10 @@ def main():
             publish.add_argument("--upstream", required=True)
             publish.add_argument("--prefix-mode", choices=["strip", "preserve"], default="strip")
     commands.add_parser("list")
+    disable = commands.add_parser("disable-login",
+                                  help="Allow everyone who can reach the gateway")
+    disable.add_argument("--confirm-public", action="store_true", required=True,
+                         help="Confirm anonymous access to every registered site")
     url = commands.add_parser("url")
     url.add_argument("id")
     remove = commands.add_parser("unpublish")
@@ -33,7 +46,11 @@ def main():
     args = parser.parse_args()
     try:
         sites = Sites(Settings.load(args.config))
-        if args.command == "list":
+        if args.command == "disable-login":
+            disable_login(sites.settings)
+            print("Password login disabled; all registered sites allow anonymous access.")
+            print("Stored password files removed; Origin checks remain enabled.")
+        elif args.command == "list":
             print(json.dumps([{**site, "url": sites.url(site["id"])}
                               for site in sites.read()], indent=2))
         elif args.command == "url":
